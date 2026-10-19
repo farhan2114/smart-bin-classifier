@@ -20,8 +20,7 @@ from torchvision import models, transforms
 ROOT = Path(__file__).resolve().parent
 MODEL_PATH = ROOT / "artifacts" / "resnet18_quantity.pth"
 CATALOGUE_PATH = ROOT / "data" / "processed" / "catalogue.csv"
-TRAIN_IMAGES = ROOT / "data" / "splits" / "train" / "images"
-VALIDATION_IMAGES = ROOT / "data" / "splits" / "validation" / "images"
+DEMO_IMAGES = ROOT / "data" / "demo_images"
 LOG_PATH = ROOT / "logs" / "validation_log.csv"
 
 DEVICE = torch.device("cpu")
@@ -116,20 +115,20 @@ def predict_quantities(image):
 # --------------------------------------------------
 
 @st.cache_data
+@st.cache_data
 def get_demo_images():
     demo_images = []
 
-    for folder in [TRAIN_IMAGES, VALIDATION_IMAGES]:
-        if folder.exists():
-            for image_path in sorted(folder.glob("*")):
-                if image_path.suffix.lower() in {
-                    ".jpg", ".jpeg", ".png", ".webp"
-                }:
-                    demo_images.append({
-                        "name": image_path.name,
-                        "path": str(image_path),
-                        "split": folder.parent.name,
-                    })
+    if DEMO_IMAGES.exists():
+        for image_path in sorted(DEMO_IMAGES.iterdir()):
+            if image_path.is_file() and image_path.suffix.lower() in {
+                ".jpg", ".jpeg", ".png", ".webp"
+            }:
+                demo_images.append({
+                    "name": image_path.name,
+                    "path": str(image_path),
+                    "split": "demo",
+                })
 
     return demo_images
 
