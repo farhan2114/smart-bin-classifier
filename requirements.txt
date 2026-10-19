@@ -1,12 +1,12 @@
 ﻿numpy
-pandas
+pandas<3
 Pillow
 matplotlib
 seaborn
 scikit-learn
 torch
 torchvision
-streamlit
+streamlit>=1.52.0
 plotly
 joblib
 tqdm
