@@ -1,7 +1,40 @@
 # --------------------------------------------------
 # Page header: show immediately
 # --------------------------------------------------
+import csv
+import json
+import time
+from datetime import datetime
+from pathlib import Path
 
+import pandas as pd
+import streamlit as st
+import torch
+import torch.nn as nn
+from PIL import Image, UnidentifiedImageError
+from torchvision import models, transforms
+
+ROOT = Path(__file__).resolve().parent
+
+MODEL_PATH = ROOT / "artifacts" / "resnet18_quantity.pth"
+CATALOGUE_PATH = ROOT / "data" / "processed" / "catalogue.csv"
+DEMO_IMAGES = ROOT / "data" / "demo_images"
+LOG_PATH = ROOT / "logs" / "validation_log.csv"
+
+DEVICE = torch.device("cpu")
+MAX_QUANTITY = 5
+
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+
+st.set_page_config(
+    page_title="Smart Bin Classifier",
+    page_icon="📦",
+    layout="wide",
+)
+
+st.title("📦 Smart Bin Classifier")
+st.caption("Image-based product quantity estimation and order validation")
+st.success("App startup reached the page header.")
 st.title("📦 Smart Bin Classifier")
 st.caption(
     "Image-based product quantity estimation and order validation"
