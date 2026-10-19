@@ -1,0 +1,24 @@
+﻿from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+
+DATA_DIR = PROJECT_ROOT / "data"
+RAW_DATA_DIR = DATA_DIR / "raw"
+PROCESSED_DATA_DIR = DATA_DIR / "processed"
+SPLITS_DIR = DATA_DIR / "splits"
+
+TRAIN_DIR = SPLITS_DIR / "train"
+VALIDATION_DIR = SPLITS_DIR / "validation"
+TEST_DIR = SPLITS_DIR / "test"
+BLIND_DIR = SPLITS_DIR / "blind"
+
+ARTIFACTS_DIR = PROJECT_ROOT / "artifacts"
+REPORTS_DIR = PROJECT_ROOT / "reports"
+LOGS_DIR = PROJECT_ROOT / "logs"
+
+RANDOM_SEED = 42
+IMAGE_SIZE = 224
+TARGET_BIN_COUNT = 2000
+MIN_CATALOGUE_FREQUENCY = 100
+MIN_BIN_QUANTITY = 1
+MAX_BIN_QUANTITY = 5

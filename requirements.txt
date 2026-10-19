@@ -1,0 +1,15 @@
+﻿numpy
+pandas
+Pillow
+matplotlib
+seaborn
+scikit-learn
+torch
+torchvision
+streamlit
+plotly
+joblib
+tqdm
+jupyter
+ipykernel
+pytest
