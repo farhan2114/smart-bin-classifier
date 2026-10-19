@@ -18,6 +18,7 @@ from torchvision import models, transforms
 # --------------------------------------------------
 
 ROOT = Path(__file__).resolve().parent
+
 MODEL_PATH = ROOT / "artifacts" / "resnet18_quantity.pth"
 CATALOGUE_PATH = ROOT / "data" / "processed" / "catalogue.csv"
 DEMO_IMAGES = ROOT / "data" / "demo_images"
@@ -25,6 +26,8 @@ LOG_PATH = ROOT / "logs" / "validation_log.csv"
 
 DEVICE = torch.device("cpu")
 MAX_QUANTITY = 5
+
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
 st.set_page_config(
     page_title="Smart Bin Classifier",
@@ -34,12 +37,20 @@ st.set_page_config(
 
 
 # --------------------------------------------------
-# Load catalogue and model
+# Load catalogue
 # --------------------------------------------------
 
 @st.cache_data
 def load_catalogue():
+    if not CATALOGUE_PATH.exists():
+        raise FileNotFoundError(
+            f"Catalogue not found: {CATALOGUE_PATH}"
+        )
+
     catalogue = pd.read_csv(CATALOGUE_PATH)
+
+    if catalogue.empty:
+        raise ValueError("The catalogue file is empty.")
 
     if "asin" in catalogue.columns:
         asin_column = "asin"
@@ -49,13 +60,27 @@ def load_catalogue():
         asin_column = catalogue.columns[0]
 
     asins = catalogue[asin_column].astype(str).tolist()
+    asins = [asin.strip() for asin in asins if asin.strip()]
+
+    if not asins:
+        raise ValueError("No product ASINs were found in the catalogue.")
+
+    if len(asins) != len(set(asins)):
+        raise ValueError("The catalogue contains duplicate ASINs.")
+
     return asins, catalogue
 
+
+# --------------------------------------------------
+# Load trained model
+# --------------------------------------------------
 
 @st.cache_resource
 def load_model():
     if not MODEL_PATH.exists():
-        raise FileNotFoundError(f"Model not found: {MODEL_PATH}")
+        raise FileNotFoundError(
+            f"Trained model not found: {MODEL_PATH}"
+        )
 
     checkpoint = torch.load(
         MODEL_PATH,
@@ -63,15 +88,19 @@ def load_model():
         weights_only=False,
     )
 
-    asins = checkpoint["catalogue_asins"]
+    asins = [str(asin) for asin in checkpoint["catalogue_asins"]]
     image_size = int(checkpoint.get("image_size", 224))
-    max_quantity = int(checkpoint.get("max_quantity", MAX_QUANTITY))
+    max_quantity = int(
+        checkpoint.get("max_quantity", MAX_QUANTITY)
+    )
 
     model = models.resnet18(weights=None)
+
     model.fc = nn.Linear(
         model.fc.in_features,
         len(asins) * (max_quantity + 1),
     )
+
     model.load_state_dict(checkpoint["model_state_dict"])
     model.to(DEVICE)
     model.eval()
@@ -88,6 +117,10 @@ def load_model():
     return model, asins, max_quantity, preprocessing
 
 
+# --------------------------------------------------
+# Predict product quantities from the image only
+# --------------------------------------------------
+
 def predict_quantities(image):
     model, asins, max_quantity, preprocessing = load_model()
 
@@ -96,9 +129,13 @@ def predict_quantities(image):
 
     with torch.inference_mode():
         logits = model(tensor)
+
         logits = logits.reshape(
-            1, len(asins), max_quantity + 1
+            1,
+            len(asins),
+            max_quantity + 1,
         )
+
         predictions = logits.argmax(dim=2)[0].cpu().tolist()
 
     return {
@@ -109,35 +146,44 @@ def predict_quantities(image):
 
 # --------------------------------------------------
 # Demo image selection
-# Metadata is used only to offer labelled demo images.
-# It is never used to validate an order or predict
-# quantities for a selected image.
+# Uses only the dedicated demo_images folder.
+# Does not read any bin metadata or ground-truth labels.
 # --------------------------------------------------
 
-@st.cache_data
 @st.cache_data
 def get_demo_images():
     demo_images = []
 
-    if DEMO_IMAGES.exists():
-        for image_path in sorted(DEMO_IMAGES.iterdir()):
-            if image_path.is_file() and image_path.suffix.lower() in {
-                ".jpg", ".jpeg", ".png", ".webp"
-            }:
-                demo_images.append({
-                    "name": image_path.name,
-                    "path": str(image_path),
-                    "split": "demo",
-                })
+    if not DEMO_IMAGES.exists():
+        return demo_images
+
+    for image_path in sorted(DEMO_IMAGES.iterdir()):
+        if (
+            image_path.is_file()
+            and image_path.suffix.lower() in IMAGE_EXTENSIONS
+        ):
+            demo_images.append({
+                "name": image_path.name,
+                "path": str(image_path),
+                "split": "demo",
+            })
 
     return demo_images
 
+
+# --------------------------------------------------
+# Write validation and prediction logs
+# --------------------------------------------------
 
 def write_log(order, photo_id, predictions, result, elapsed):
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     file_exists = LOG_PATH.exists()
 
-    with LOG_PATH.open("a", newline="", encoding="utf-8") as file:
+    with LOG_PATH.open(
+        "a",
+        newline="",
+        encoding="utf-8",
+    ) as file:
         writer = csv.DictWriter(
             file,
             fieldnames=[
@@ -164,10 +210,11 @@ def write_log(order, photo_id, predictions, result, elapsed):
 
 
 # --------------------------------------------------
-# User interface
+# Main application
 # --------------------------------------------------
 
 st.title("📦 Smart Bin Classifier")
+
 st.caption(
     "Image-based product quantity estimation and order validation"
 )
@@ -179,7 +226,13 @@ try:
     if catalogue_asins != model_asins:
         st.warning(
             "The catalogue order differs from the model checkpoint. "
-            "Predictions will use the model checkpoint's product order."
+            "The model checkpoint's product order will be used."
+        )
+
+    if set(catalogue_asins) != set(model_asins):
+        st.warning(
+            "The catalogue and trained model contain different products. "
+            "Predictions are limited to products supported by the model."
         )
 
 except Exception as error:
@@ -194,89 +247,132 @@ tab_validate, tab_blind, tab_about = st.tabs([
 ])
 
 
+# ==================================================
+# TAB 1: ORDER VALIDATION
+# ==================================================
+
 with tab_validate:
     st.subheader("Order validation")
+
     st.write(
-        "Enter the requested quantity for each catalogue product, "
-        "then select or upload a bin photograph."
+        "Enter the quantities requested for each product, "
+        "then upload a photograph or choose a demo photograph."
     )
 
+    # Quantity inputs are outside a form so photo-source
+    # changes update the interface immediately.
     order = {}
 
-    with st.form("order_form"):
-        st.markdown("#### Ordered quantities")
+    st.markdown("#### Ordered quantities")
 
-        for asin in model_asins:
-            order[asin] = st.number_input(
-                asin,
-                min_value=0,
-                max_value=max_quantity,
-                value=0,
-                step=1,
-                key=f"order_{asin}",
-            )
-
-        st.markdown("#### Bin photograph")
-
-        source = st.radio(
-            "Choose photo source",
-            ["Upload a photo", "Use a demo photo"],
-            horizontal=True,
+    for asin in model_asins:
+        order[asin] = st.number_input(
+            asin,
+            min_value=0,
+            max_value=max_quantity,
+            value=0,
+            step=1,
+            key=f"order_{asin}",
         )
 
-        uploaded_image = None
-        demo_choice = None
+    st.markdown("#### Bin photograph")
 
-        if source == "Upload a photo":
-            uploaded_image = st.file_uploader(
-                "Upload bin image",
-                type=["jpg", "jpeg", "png", "webp"],
-                key="validation_upload",
-            )
-        else:
-            demo_images = get_demo_images()
+    source = st.radio(
+        "Choose photo source",
+        ["Upload a photo", "Use a demo photo"],
+        horizontal=True,
+        key="photo_source",
+    )
 
-            if demo_images:
-                options = {
-                    f"{item['name']} ({item['split']})": item
-                    for item in demo_images
-                }
-                selected_label = st.selectbox(
-                    "Choose a demo photograph",
-                    list(options.keys()),
+    uploaded_image = None
+    demo_choice = None
+
+    if source == "Upload a photo":
+        uploaded_image = st.file_uploader(
+            "Upload bin image",
+            type=["jpg", "jpeg", "png", "webp"],
+            key="validation_upload",
+        )
+
+        if uploaded_image is not None:
+            try:
+                preview_image = Image.open(uploaded_image).convert("RGB")
+                st.image(
+                    preview_image,
+                    caption="Uploaded bin photograph",
+                    width=320,
                 )
-                demo_choice = options[selected_label]
-            else:
-                st.warning("No demo images were found.")
+            except (UnidentifiedImageError, OSError, ValueError):
+                st.error("The uploaded file is not a readable image.")
 
-        submitted = st.form_submit_button(
-            "Validate order",
-            type="primary",
-        )
+    else:
+        demo_images = get_demo_images()
+
+        if demo_images:
+            options = {
+                f"{item['name']} ({item['split']})": item
+                for item in demo_images
+            }
+
+            selected_label = st.selectbox(
+                "Choose a demo photograph",
+                list(options.keys()),
+                key="demo_photo_choice",
+            )
+
+            demo_choice = options[selected_label]
+
+            try:
+                preview_image = Image.open(
+                    demo_choice["path"]
+                ).convert("RGB")
+
+                st.image(
+                    preview_image,
+                    caption=f"Demo photograph: {demo_choice['name']}",
+                    width=320,
+                )
+
+            except (UnidentifiedImageError, OSError, ValueError):
+                st.error("The selected demo image cannot be opened.")
+
+        else:
+            st.warning(
+                "No demo images were found. Add JPG, JPEG, PNG, or WEBP "
+                "files to data/demo_images and push them to GitHub. "
+                "You can still use the Upload a photo option."
+            )
+
+    submitted = st.button(
+        "Validate order",
+        type="primary",
+        key="validate_order_button",
+    )
 
     if submitted:
         if source == "Upload a photo" and uploaded_image is None:
             st.error("Please upload a bin photograph.")
+
         elif source == "Use a demo photo" and demo_choice is None:
-            st.error("Please select a demo photograph.")
-        elif not any(order.values()):
-            st.error("Enter a quantity greater than zero for at least one product.")
+            st.error("Please select an available demo photograph.")
+
         else:
             try:
                 if source == "Upload a photo":
                     image = Image.open(uploaded_image).convert("RGB")
                     photo_id = uploaded_image.name
                 else:
-                    image = Image.open(demo_choice["path"]).convert("RGB")
+                    image = Image.open(
+                        demo_choice["path"]
+                    ).convert("RGB")
                     photo_id = demo_choice["name"]
-
-                st.image(image, caption="Selected bin photograph", width=320)
 
                 start = time.perf_counter()
                 predictions = predict_quantities(image)
 
                 mismatches = [
-                    asin for asin in model_asins
+                    asin
+                    for asin in model_asins
                     if int(order[asin]) != predictions[asin]
                 ]
 
@@ -291,10 +387,12 @@ with tab_validate:
                     elapsed,
                 )
 
+                st.markdown("### Validation result")
+
                 if result == "PASS":
                     st.success(
-                        "PASS: Predicted quantities match the order "
-                        "for all catalogue products."
+                        "PASS: Predicted quantities match the entered "
+                        "order for all catalogue products."
                     )
                 else:
                     st.error(
@@ -316,7 +414,12 @@ with tab_validate:
                     for asin in model_asins
                 ])
 
-                st.dataframe(results_df, use_container_width=True)
+                st.dataframe(
+                    results_df,
+                    use_container_width=True,
+                    hide_index=True,
+                )
+
                 st.caption(
                     f"Model inference and comparison: {elapsed:.4f} seconds. "
                     "This excludes image upload and display time."
@@ -327,36 +430,60 @@ with tab_validate:
                     data=results_df.to_csv(index=False),
                     file_name="validation_results.csv",
                     mime="text/csv",
+                    key="download_validation_results",
                 )
 
                 with st.expander("View predicted quantities"):
                     st.json(predictions)
 
-            except (UnidentifiedImageError, OSError, ValueError) as error:
-                st.error(f"The selected file is not a readable image: {error}")
+            except (
+                UnidentifiedImageError,
+                OSError,
+                ValueError,
+            ) as error:
+                st.error(
+                    f"The selected file is not a readable image: {error}"
+                )
+
             except Exception as error:
                 st.error(f"Validation failed: {error}")
 
 
+# ==================================================
+# TAB 2: BLIND PREDICTION
+# ==================================================
+
 with tab_blind:
     st.subheader("Blind bin prediction")
+
     st.write(
         "Enter a bin identifier and upload its photograph. "
-        "The app predicts quantities from the photograph alone."
+        "Predictions are generated from the photograph alone. "
+        "Blind-bin metadata and ground-truth labels are not loaded."
     )
 
-    blind_bin_id = st.text_input("Bin ID")
+    blind_bin_id = st.text_input(
+        "Bin ID",
+        key="blind_bin_id",
+    )
+
     blind_photo = st.file_uploader(
         "Upload blind bin photograph",
         type=["jpg", "jpeg", "png", "webp"],
         key="blind_upload",
     )
 
-    if st.button("Predict blind bin", type="primary"):
+    if st.button(
+        "Predict blind bin",
+        type="primary",
+        key="predict_blind_button",
+    ):
         if not blind_bin_id.strip():
             st.error("Enter a bin ID.")
+
         elif blind_photo is None:
             st.error("Upload a bin photograph.")
+
         else:
             try:
                 image = Image.open(blind_photo).convert("RGB")
@@ -373,20 +500,36 @@ with tab_blind:
                     elapsed,
                 )
 
-                st.image(image, caption="Blind bin photograph", width=320)
-                st.success(f"Predictions generated for bin {blind_bin_id.strip()}")
+                st.image(
+                    image,
+                    caption="Blind bin photograph",
+                    width=320,
+                )
+
+                st.success(
+                    f"Predictions generated for bin {blind_bin_id.strip()}."
+                )
 
                 prediction_df = pd.DataFrame([
-                    {"Product ASIN": asin, "Predicted quantity": predictions[asin]}
+                    {
+                        "Product ASIN": asin,
+                        "Predicted quantity": predictions[asin],
+                    }
                     for asin in model_asins
                 ])
-                st.dataframe(prediction_df, use_container_width=True)
+
+                st.dataframe(
+                    prediction_df,
+                    use_container_width=True,
+                    hide_index=True,
+                )
 
                 st.download_button(
                     "Download blind predictions",
                     data=prediction_df.to_csv(index=False),
                     file_name="blind_predictions.csv",
                     mime="text/csv",
+                    key="download_blind_predictions",
                 )
 
                 st.caption(
@@ -394,14 +537,26 @@ with tab_blind:
                     f"Inference time: {elapsed:.4f} seconds."
                 )
 
-            except (UnidentifiedImageError, OSError, ValueError) as error:
-                st.error(f"The selected file is not a readable image: {error}")
+            except (
+                UnidentifiedImageError,
+                OSError,
+                ValueError,
+            ) as error:
+                st.error(
+                    f"The selected file is not a readable image: {error}"
+                )
+
             except Exception as error:
                 st.error(f"Blind prediction failed: {error}")
 
 
+# ==================================================
+# TAB 3: ABOUT THE MODEL
+# ==================================================
+
 with tab_about:
     st.subheader("Model information")
+
     st.write(f"Products in model catalogue: **{len(model_asins)}**")
     st.write(f"Maximum predicted quantity per product: **{max_quantity}**")
     st.write(f"Compute device: **{DEVICE}**")
@@ -414,8 +569,19 @@ with tab_about:
     )
 
     st.markdown("#### Data handling")
+
     st.write(
-        "Validation uses image predictions and the entered order. "
-        "The app does not load blind-bin metadata to produce predictions. "
-        "Training and validation images are offered only as demo photographs."
+        "Order validation uses model predictions from the selected image "
+        "and the quantities entered by the user. The app does not load "
+        "blind-bin metadata to make predictions. Demo mode reads images "
+        "only from the dedicated data/demo_images folder."
+    )
+
+    st.markdown("#### Logging")
+
+    st.write(
+        "Validation and blind-prediction requests are logged with a "
+        "timestamp, photo identifier, entered order where applicable, "
+        "model output, result, and measured inference/comparison time. "
+        "Logs on free cloud hosting may not persist across restarts."
     )
