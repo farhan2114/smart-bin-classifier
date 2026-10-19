@@ -1,107 +1,95 @@
-        if not blind_bin_id.strip():
-            st.error("Enter a bin ID.")
 
-        elif blind_photo is None:
-            st.error("Upload a bin photograph.")
+import csv
+import json
+import time
+from datetime import datetime
+from pathlib import Path
 
-        else:
-            try:
-                image = Image.open(blind_photo).convert("RGB")
-
-                start = time.perf_counter()
-                predictions = predict_quantities(image)
-                elapsed = time.perf_counter() - start
-
-                write_log(
-                    {},
-                    f"blind:{blind_bin_id.strip()}:{blind_photo.name}",
-                    predictions,
-                    "BLIND_PREDICTION",
-                    elapsed,
-                )
-
-                st.image(
-                    image,
-                    caption="Blind bin photograph",
-                    width=320,
-                )
-
-                st.success(
-                    f"Predictions generated for bin {blind_bin_id.strip()}."
-                )
-
-                prediction_df = pd.DataFrame([
-                    {
-                        "Product ASIN": asin,
-                        "Predicted quantity": predictions[asin],
-                    }
-                    for asin in model_asins
-                ])
-
-                st.dataframe(
-                    prediction_df,
-                    width="stretch",
-                    hide_index=True,
-                )
-
-                st.download_button(
-                    "Download blind predictions",
-                    data=prediction_df.to_csv(index=False),
-                    file_name="blind_predictions.csv",
-                    mime="text/csv",
-                    key="download_blind_predictions",
-                )
-
-                st.caption(
-                    "Predictions are model estimates, not ground-truth labels. "
-                    f"Inference time: {elapsed:.4f} seconds."
-                )
-
-            except (
-                UnidentifiedImageError,
-                OSError,
-                ValueError,
-            ) as error:
-                st.error(
-                    f"The selected file is not a readable image: {error}"
-                )
-
-            except Exception as error:
-                st.error(f"Blind prediction failed: {error}")
+import pandas as pd
+import streamlit as st
+import torch
+import torch.nn as nn
+from PIL import Image, UnidentifiedImageError
+from torchvision import models, transforms
 
 
-# ==================================================
-# TAB 3: ABOUT THE MODEL
-# ==================================================
+# --------------------------------------------------
+# Paths and configuration
+# --------------------------------------------------
 
-with tab_about:
-    st.subheader("Model information")
+ROOT = Path(__file__).resolve().parent
 
-    st.write(f"Products in model catalogue: **{len(model_asins)}**")
-    st.write(f"Maximum predicted quantity per product: **{max_quantity}**")
-    st.write(f"Compute device: **{DEVICE}**")
+MODEL_PATH = ROOT / "artifacts" / "resnet18_quantity.pth"
+CATALOGUE_PATH = ROOT / "data" / "processed" / "catalogue.csv"
+DEMO_IMAGES = ROOT / "data" / "demo_images"
+LOG_PATH = ROOT / "logs" / "validation_log.csv"
 
-    st.info(
-        "This prototype only covers the ten selected catalogue products. "
-        "A predicted quantity of zero does not prove an item is absent. "
-        "The model can make false positives and false negatives, so it "
-        "should not be treated as a production-grade guarantee."
+DEVICE = torch.device("cpu")
+MAX_QUANTITY = 5
+
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+
+st.set_page_config(
+    page_title="Smart Bin Classifier",
+    page_icon="📦",
+    layout="wide",
+)
+
+
+# --------------------------------------------------
+# Load catalogue
+# --------------------------------------------------
+
+@st.cache_data
+def load_catalogue():
+    if not CATALOGUE_PATH.exists():
+        raise FileNotFoundError(
+            f"Catalogue not found: {CATALOGUE_PATH}"
+        )
+
+    catalogue = pd.read_csv(CATALOGUE_PATH)
+
+    if catalogue.empty:
+        raise ValueError("The catalogue file is empty.")
+
+    if "asin" in catalogue.columns:
+        asin_column = "asin"
+    elif "ASIN" in catalogue.columns:
+        asin_column = "ASIN"
+    else:
+        asin_column = catalogue.columns[0]
+
+    asins = catalogue[asin_column].astype(str).tolist()
+    asins = [asin.strip() for asin in asins if asin.strip()]
+
+    if not asins:
+        raise ValueError("No product ASINs were found in the catalogue.")
+
+    if len(asins) != len(set(asins)):
+        raise ValueError("The catalogue contains duplicate ASINs.")
+
+    return asins, catalogue
+
+
+# --------------------------------------------------
+# Load trained model
+# --------------------------------------------------
+
+@st.cache_resource
+def load_model():
+    if not MODEL_PATH.exists():
+        raise FileNotFoundError(
+            f"Trained model not found: {MODEL_PATH}"
+        )
+
+    checkpoint = torch.load(
+        MODEL_PATH,
+        map_location=DEVICE,
+        weights_only=False,
     )
 
-    st.markdown("#### Data handling")
-
-    st.write(
-        "Order validation uses model predictions from the selected image "
-        "and the quantities entered by the user. The app does not load "
-        "blind-bin metadata to make predictions. Demo mode reads images "
-        "only from the dedicated data/demo_images folder."
-    )
-
-    st.markdown("#### Logging")
-
-    st.write(
-        "Validation and blind-prediction requests are logged with a "
-        "timestamp, photo identifier, entered order where applicable, "
-        "model output, result, and measured inference/comparison time. "
-        "Logs on free cloud hosting may not persist across restarts."
+    asins = [str(asin) for asin in checkpoint["catalogue_asins"]]
+    image_size = int(checkpoint.get("image_size", 224))
+    max_quantity = int(
+        checkpoint.get("max_quantity", MAX_QUANTITY)
     )
