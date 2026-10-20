@@ -1,338 +1,380 @@
-**Smart Bin Classifier**
-
-
+# Smart Bin Classifier
 
 An image-based product quantity prediction and order validation prototype using computer vision and deep learning.
 
+## 1. Project Overview
 
+Smart Bin Classifier predicts the quantities of selected catalogue products from a photograph of a storage bin. It compares the predicted quantities against an order entered by the user and reports whether the order matches the model's predictions.
 
-**1. Project Overview**
+The prototype supports a fixed catalogue of 10 Amazon Standard Identification Numbers (ASINs). It is an experimental system intended to demonstrate image-based inventory recognition and order validation, not a production-grade guarantee of inventory accuracy.
 
+## 2. Features
 
+- **Image-based quantity prediction:** Predicts quantities for the 10 supported catalogue products from a bin photograph.
+- **Order validation:** Compares entered quantities against model predictions and reports per-product PASS/FAIL results.
+- **Blind prediction:** Generates predictions from an uploaded photograph and a bin identifier without using blind ground-truth labels as model inputs.
+- **Demo image selection:** Supports selecting example photographs from `data/demo_images/`.
+- **CSV logging:** Records validation events, model predictions, results, timestamps, and processing time.
+- **Downloadable results:** Allows users to download validation and prediction results as CSV files.
+- **Multiple modelling approaches:** Explores frequency-based, image-feature-based, presence-classification, and quantity-classification methods.
 
-Smart Bin Classifier predicts the quantities of selected catalogue products from a photograph of a storage bin. It compares the model's predictions with an entered order and reports whether the quantities match.
+## 3. Technology Stack
 
+| Technology | Purpose |
+|---|---|
+| Python | Application and model development |
+| PyTorch | Deep learning and model training |
+| Torchvision | ResNet-18 architecture and image transformations |
+| ResNet-18 | Image-based product prediction |
+| Pandas | Tabular data processing |
+| NumPy | Numerical operations |
+| Pillow | Image loading and processing |
+| Scikit-learn | Baseline models and evaluation utilities |
+| Streamlit | Interactive web application |
+| Matplotlib and Seaborn | Data analysis and visualisation |
+| Plotly | Interactive visualisations |
+| Joblib | Serialisation of supported baseline models |
 
+The exact dependencies are listed in `requirements.txt`.
 
-The prototype covers a fixed catalogue of 10 ASINs. It is an experimental system, not a production-grade guarantee of inventory accuracy.
+## 4. Dataset
 
+**Dataset:** [Amazon Bin Image Dataset: 536,434 Images at 224 × 224](https://www.kaggle.com/datasets/williamhyun/amazon-bin-image-dataset-536434-images-224x224)
 
+The project uses a selected subset of 2,000 bin images and a catalogue of 10 products.
 
-2. Features
+### Dataset splits
 
-Image-based quantity prediction for the selected catalogue products.
+| Split | Number of images | Purpose |
+|---|---:|---|
+| Training | 1,400 | Model training |
+| Validation | 200 | Model selection and threshold tuning |
+| Test | 200 | Held-out evaluation |
+| Blind | 200 | Prediction demonstration without using ground-truth labels |
+| **Total** | **2,000** | |
 
-Order validation with per-product PASS/FAIL results.
+The blind split contains photographs and associated ordering information where applicable. Its ground-truth metadata must remain separate from model inputs and must not be used for model selection, threshold tuning, or validation decisions.
 
-Blind prediction using a bin identifier and uploaded photograph.
+The dataset is distributed under the **CC BY-NC-SA 3.0 US** licence, as stated by the dataset source. Users should consult the original dataset page and follow its licence terms, attribution requirements, and restrictions.
 
-Demo photograph selection from the dedicated data/demo_images/ folder.
+The dataset and processed image splits are not intended to be committed to the Git repository. They must be obtained and prepared locally according to the project scripts.
 
-CSV logging of requests, model predictions, results, timestamps, and processing time.
+## 5. Project Structure
 
-Downloadable validation and blind-prediction results.
-
-
-**3. Technology Stack**
-
-
-
-\- Python
-
-\- PyTorch and Torchvision
-
-\- ResNet-18
-
-\- Pandas, NumPy, Pillow
-
-\- Scikit-learn
-
-\- Streamlit
-
-
-
-**4. Dataset**
-
-
-
-Dataset: \[Amazon Bin Image Dataset: 536,434 Images at 224 × 224](https://www.kaggle.com/datasets/williamhyun/amazon-bin-image-dataset-536434-images-224x224?resource=download)
-
-
-
-The project uses a selected subset of 2,000 bins and a catalogue of 10 products. The prepared splits contain 1,400 training images, 200 validation images, 200 test images, and 200 blind images.
-
-
-
-The blind split contains photographs only. Its ground-truth metadata must not be used for predictions or validation.
-
-
-
-The dataset is provided under the CC BY-NC-SA 3.0 US license. Use it according to its terms and cite the original dataset.
-
-
-
-**5. Project Structure**
-
-
+The repository includes the application, configuration, dataset preparation scripts, model code, reports, and supporting files. The exact contents may change as development progresses.
 
 ```text
-
 smart-bin-classifier/
-
 ├── app.py
-
 ├── config.py
-
 ├── requirements.txt
-
 ├── README.md
-
-├── notebooks/
-
+├── analyze_metadata.py
+├── inspect_metadata.py
+├── prepare_dataset.py
+├── run_eda.py
+├── select_bins.py
 ├── src/
-
 │   ├── data/
-
 │   ├── models/
-
 │   ├── evaluation/
-
 │   └── utils/
-
-├── data/
-
-│   └── (local dataset files, excluded from Git)
-
 ├── artifacts/
-
-│   └── (local model checkpoints, excluded from Git)
-
+│   └── model checkpoints
+├── data/
+│   ├── demo_images/
+│   └── local dataset and processed splits
 ├── reports/
-
 │   └── metrics/
-
-├── logs/
-
-└── tests/
-
+└── logs/
 ```
 
+Some directories and files are generated during dataset preparation, training, evaluation, or application use. The local dataset, model checkpoints, and logs may be excluded from version control.
 
+## 6. Installation and Setup
 
-**6. Setup**
+### Prerequisites
 
+- Python installed on your system. Python 3.11 is a reasonable starting point, but compatibility with the dependencies should be verified.
+- Git, if cloning the repository.
+- The required dataset and prepared files.
+- The trained model checkpoint and catalogue CSV expected by the application.
 
-
-Use a compatible Python environment. Python 3.11 is a reasonable starting point if recreating the environment, but package compatibility should be verified before installation.
-
-
-
-Create and activate a virtual environment on Windows:
-
-
+### Step 1: Clone the repository
 
 ```powershell
+git clone https://github.com/farhan2114/smart-bin-classifier.git
+cd smart-bin-classifier
+```
 
+If you already have the repository locally, open PowerShell in the existing project directory instead.
+
+### Step 2: Create a virtual environment
+
+```powershell
 python -m venv .venv
-
-.\\.venv\\Scripts\\Activate.ps1
-
 ```
 
-
-
-Install dependencies:
-
-
+Activate it on Windows PowerShell:
 
 ```powershell
-
-python -m pip install -r requirements.txt
-
+.\.venv\Scripts\Activate.ps1
 ```
 
+If PowerShell blocks activation, follow your organisation's security policy or use another supported method of activating a Python virtual environment.
 
+### Step 3: Install dependencies
 
-The dataset, processed splits, catalogue CSV, and trained model checkpoint must be available in the expected local paths before running the application.
+```powershell
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
 
+PyTorch installation requirements can vary by operating system and hardware. If installation fails, consult the official [PyTorch installation guide](https://pytorch.org/get-started/locally/).
 
+### Step 4: Prepare the required files
 
-7. Run the Application
+Before launching the application, verify that the required files exist at the paths expected by `app.py` and the model-loading code.
 
-Install dependencies and ensure the required catalogue CSV and trained model checkpoint are available at the paths expected by app.py.
+These include:
 
+- The catalogue CSV, such as `data/processed/catalogue.csv`.
+- The trained quantity-model checkpoint, such as `artifacts/resnet18_quantity.pth`.
+- Any additional metadata or processed files required by the selected application workflow.
+- Demo photographs, if you want to use the demo image selection feature.
+
+The dataset preparation and training scripts can be used to recreate supported files when the necessary source data is available. Exact commands depend on the configuration and requirements of the individual scripts.
+
+## 7. Running the Application
+
+From the activated virtual environment and the project root, run:
+
+```powershell
 python -m streamlit run app.py
+```
 
-Open the local URL printed in the terminal, usually http://localhost:8501.
+Streamlit prints a local address in the terminal, usually:
 
-Validate an order
+[http://localhost:8501](http://localhost:8501)
 
-Enter a quantity for each catalogue product.
+Open that address in your browser.
 
-Upload a bin photograph or select a demo photograph.
+### 7.1 Order Validation
 
-Submit the order for validation.
+1. Enter the expected quantity for each supported catalogue product.
+2. Upload a bin photograph or select a demo photograph.
+3. Submit the order for validation.
+4. Review the predicted quantities and per-product PASS/FAIL results.
+5. Download the available validation results as a CSV file.
 
-Review the predicted quantities and per-product PASS/FAIL results.
+The result reflects the model's predictions and the application's comparison logic. It should not be treated as a guarantee that the physical inventory has been counted correctly.
 
-Download the validation results as a CSV file.
+### 7.2 Blind Prediction
 
-Blind prediction
+1. Enter the bin identifier.
+2. Upload a bin photograph.
+3. Generate quantity predictions.
+4. Review the predicted quantities.
+5. Download the available prediction results.
 
-Enter a bin identifier.
+Blind prediction must use the photograph as model input without accessing its ground-truth labels to produce or adjust predictions.
 
-Upload a bin photograph.
+## 8. Model Approaches
 
-Generate the model's quantity predictions.
+The project explores several approaches to product recognition and quantity estimation.
 
-Review or download the predictions.
+### 8.1 Frequency-Based Baseline
 
-Blind prediction uses the photograph as model input. Blind ground-truth metadata must not be used to generate predictions or make validation decisions.**8. Model Approaches**
+A baseline based on product frequency provides a simple reference for comparison with image-based approaches.
 
+### 8.2 RGB Histogram Baseline
 
+An RGB histogram feature representation combined with logistic regression is used to explore product-presence prediction.
 
-The project explores:
+### 8.3 ResNet-18 Product-Presence Model
 
+A pretrained ResNet-18 model is fine-tuned to predict whether supported catalogue products are present in an image.
 
+### 8.4 Threshold-Tuned Presence Model
 
-\- A frequency-based baseline.
+Per-product decision thresholds are evaluated to adjust the balance between precision and recall.
 
-\- An RGB histogram feature model with logistic regression for product presence.
+The project recorded a validation micro F1 score of approximately **0.587** for a threshold-tuned presence-model evaluation. Because the thresholds were tuned using the validation set, the reported result may be optimistic and should not be interpreted as an independent test score.
 
-\- A pretrained ResNet-18 model for product presence.
+### 8.5 ResNet-18 Quantity Classifier
 
-\- A fine-tuned ResNet-18 model with tuned per-product thresholds.
+A ResNet-18-based quantity classifier predicts one of six quantity classes, from 0 through 5, for each of the 10 catalogue products.
 
-\- A ResNet-18 quantity classifier that predicts quantity classes from 0 to 5 for each catalogue product.
+The output represents 60 product-quantity class scores in total.
 
+The model's performance is evaluated separately from the order-validation experiment because quantity estimation and order PASS/FAIL classification measure different things.
 
+## 9. Quantity Model Test Results
 
-The fine-tuned presence model achieved a validation micro F1 score of approximately 0.587 after threshold tuning. Since thresholds were tuned on the same validation set used for scoring, this result may be optimistic.
-
-
-
-**9. Evaluation Results**
-
-
-
-The held-out test evaluation generated 400 synthetic orders: 200 valid orders and 200 deliberately invalid orders.
-
-
+The final recorded quantity-model evaluation used **200 held-out test images**. Predictions were evaluated using the argmax quantity class for each product.
 
 | Metric | Result |
-
 |---|---:|
+| Test images evaluated | 200 |
+| Catalogue products | 10 |
+| Whole-vector exact match | 60.00% |
+| Mean absolute error across all product entries | 0.0565 |
+| Actual nonzero product entries | 103 |
+| Exact quantity accuracy on nonzero entries | 27.18% |
+| Mean absolute error on nonzero entries | 1.00 |
 
+### Interpretation
+
+- **Whole-vector exact match** measures the proportion of images for which all 10 predicted quantities exactly match the ground truth.
+- **Overall mean absolute error (MAE)** averages absolute quantity errors across all image-product entries, including absent products.
+- **Exact quantity accuracy on nonzero entries** measures exact quantity predictions for products that are actually present.
+- **MAE on nonzero entries** measures the average absolute quantity error for those present products.
+
+The overall MAE is influenced by the large number of zero-quantity entries. Performance on products that are actually present is substantially more challenging, as reflected in the exact quantity accuracy and nonzero-entry MAE.
+
+These figures describe the recorded test evaluation only. They do not establish production-level inventory accuracy.
+
+## 10. Synthetic Order Validation Evaluation
+
+A separate evaluation examined **400 synthetic order cases**: 200 valid orders and 200 deliberately invalid orders. The order-validation logic compared the model's predictions against the quantities specified by each order.
+
+| Metric | Result |
+|---|---:|
 | Overall PASS/FAIL accuracy | 79.25% |
-
 | Invalid orders incorrectly passed | 0 of 200 |
-
 | Valid orders incorrectly rejected | 83 of 200 |
-
 | Valid-order false rejection rate | 41.50% |
 
+### Interpretation
 
+The evaluation produced no false passes among the 200 deliberately invalid orders, but it incorrectly rejected 83 of the 200 valid orders.
 
-These results apply only to the evaluated sample and the selected 10-product catalogue. Zero false passes in this experiment does not guarantee zero false passes in real-world use.
+This indicates that the evaluated system was conservative in this sample and still had a substantial false-rejection problem. Zero false passes in a limited experiment does not guarantee zero false passes on unseen data or in real-world use.
 
+The synthetic orders were constructed and scored using test ground-truth quantities. Ground-truth labels were used for evaluation and order construction, not as inputs to the prediction model. The test results must not be used to tune model parameters or decision thresholds.
 
+These order-validation metrics are separate from the quantity-model metrics in Section 9.
 
-The valid and invalid orders were constructed using test ground-truth labels for evaluation. Ground-truth labels were used for scoring and order construction, not as model inputs.
+## 11. Limitations and Failure Analysis
 
+The current prototype has several limitations:
 
+- **Limited catalogue:** Only 10 selected products are supported.
+- **Zero-versus-one confusion:** Distinguishing an absent product from a product present in a small quantity remains challenging.
+- **False positives:** The model may predict that an absent product is present.
+- **False negatives:** The model may fail to detect a product that is actually present.
+- **Class imbalance:** Higher quantity classes have fewer training examples, which can limit model performance.
+- **Visual variability:** Image quality, lighting, occlusion, product orientation, and overlapping objects can affect predictions.
+- **Prototype-level validation:** The system requires more extensive testing before being used for operational inventory decisions.
+- **Latency measurements:** Recorded processing time may not represent complete end-to-end application latency, including upload, network, and hosting overhead.
+- **Limited generalisation evidence:** Results from one selected dataset and catalogue may not generalise to different products, storage conditions, or camera setups.
 
-\## 10. Limitations and Failure Analysis
+Example false-rejection cases have been recorded in `reports/metrics/five_failure_cases.csv`, if that report is present in the local project.
 
+The evaluation reports and diagnostic scripts can help identify failure patterns and guide further experiments.
 
+## 12. Logging
 
-\- The catalogue is limited to 10 selected products.
+The application is configured to write validation events to:
 
-\- Low quantities, particularly the distinction between zero and one, remain challenging.
+```text
+logs/validation_log.csv
+```
 
-\- False positives can occur when an absent product is predicted as present.
+Depending on the active workflow, log entries may include:
 
-\- False negatives can occur when a product in the bin is missed.
+- Timestamp.
+- Order information.
+- Photograph or bin identifier.
+- Model predictions.
+- Validation result.
+- Processing-time measurement.
 
-\- Rare higher quantities have limited training examples.
+Check the actual CSV schema and the application logging implementation for the exact fields recorded.
 
-\- The app is a prototype and requires further testing before real inventory decisions.
+**Hosted-storage limitation:** Files written to a hosted application's local filesystem may not persist across restarts, redeployments, or storage resets. Download or export logs when they need to be retained. Durable production logging would require a suitable persistent storage service.
 
-\- Processing-time measurements should not be interpreted as complete end-to-end application latency.
+## 13. Deployment
 
+**Hosting platform:** Streamlit Community Cloud
 
+**Configured live application URL:**  
+[https://smart-bin-classifier-farhan21.streamlit.app/](https://smart-bin-classifier-farhan21.streamlit.app/)
 
-Five example false-rejection cases are saved in `reports/metrics/five\_failure\_cases.csv`.
+The application requires compatible dependencies and access to the catalogue CSV and trained model checkpoint at the paths expected by the application code. Demo-image selection also requires the relevant photographs to be available.
 
+For deployment, verify that:
 
+1. The configured repository and branch are correct.
+2. The selected application entry point is `app.py`.
+3. Dependencies are installed successfully.
+4. Required model and catalogue files are accessible to the hosted application.
+5. Order validation and blind prediction work.
+6. CSV downloads function as expected.
+7. Logs and other generated files are not assumed to be persistent.
 
-**11. Logging**
+The URL above is the configured application address. Its current availability and functionality should be checked directly before submission.
 
+## 14. Production Monitoring and Retraining Plan
 
+Before considering production use, the following improvements are recommended:
 
-The application writes validation events to `logs/validation\_log.csv`. Entries include a timestamp, order, photo ID, model predictions, result, and processing time.
+1. Monitor false-pass and false-rejection rates on representative data.
+2. Review errors by product and quantity class.
+3. Collect representative, correctly labelled examples with appropriate permissions.
+4. Investigate changes in image quality, product appearance, and data distributions.
+5. Retrain through a reproducible and controlled training pipeline.
+6. Keep training, validation, and test data separated.
+7. Evaluate candidate models on a held-out test set before release.
+8. Track model versions, training configurations, and evaluation results.
+9. Retain the ability to roll back to a previously validated model.
+10. Add persistent storage and monitoring before relying on the system for operational inventory decisions.
 
+## 15. AI Tools Used
 
+AI assistance was used during development for code drafting, debugging, experiment planning, and documentation. Generated code and recommendations were reviewed and tested as part of the development process.
 
-Local logs may be lost when a hosted instance restarts or its storage is reset. Download or export logs regularly if they must be retained.
+One documented debugging example involved an indentation error in `app.py` that caused Python compilation to fail. The error was identified from the application traceback, corrected, and checked locally before proceeding.
 
+AI assistance does not replace software testing or model evaluation. The project documents its evaluation results and known limitations so that the prototype's capabilities are not overstated.
 
+## 16. Git and Submission
 
-12. Deployment
+The repository is intended to contain the source code, configuration, dependency list, README, relevant evaluation scripts, selected reports, presentation, and Git history.
 
-Platform: Streamlit Community Cloud
+Repository:
 
-Live application: https://smart-bin-classifier-farhan21.streamlit.app/
+[https://github.com/farhan2114/smart-bin-classifier](https://github.com/farhan2114/smart-bin-classifier)
 
-The application requires compatible Python dependencies, the trained model checkpoint, and the catalogue CSV. The demo-photo feature requires images in data/demo_images/.
+Presentation directory:
 
-The application has been tested for order validation, blind prediction, and CSV downloads. Hosted filesystem logs may not persist across restarts, so they should not be treated as durable production storage.
+[https://github.com/farhan2114/smart-bin-classifier/tree/main/presentation](https://github.com/farhan2114/smart-bin-classifier/tree/main/presentation)
 
+### Recommended submission contents
 
-**13. Production Monitoring and Retraining Plan**
+- Source code and required configuration.
+- `requirements.txt`.
+- Updated `README.md`.
+- Project presentation, within the required maximum of 12 slides.
+- Relevant model evaluation reports.
+- Required Git history, including the `.git` directory, if explicitly requested.
+- Instructions for obtaining or recreating any required model artifacts.
 
+### Files generally excluded from a submission ZIP
 
+Unless specifically required by the evaluator, avoid including:
 
-Before production use:
+- The `.venv/` virtual environment.
+- The full raw dataset.
+- Large processed image splits.
+- Local logs containing test or runtime data.
+- Secrets, API keys, credentials, and local environment files.
+- Unnecessary temporary files, debug outputs, and backups.
 
+**Important:** The application needs its trained model checkpoint and catalogue CSV to run. If the checkpoint is excluded from the submission ZIP, provide a clear and reproducible method for obtaining or recreating it, subject to the applicable dataset and model-distribution terms.
 
+Before submitting, test the setup instructions in a clean environment, verify that the required model and data files are available, open the deployed application, and confirm that the final presentation and source files are included.
 
-1\. Monitor false-pass and false-rejection rates.
+---
 
-2\. Review prediction errors by product and quantity class.
-
-3\. Collect representative, correctly labelled examples with appropriate permissions.
-
-4\. Investigate data drift and image-quality problems.
-
-5\. Retrain using a controlled training pipeline and separate validation data.
-
-6\. Evaluate the updated model on a held-out test set before release.
-
-7\. Track model versions and retain rollback capability.
-
-
-
-14. AI Tools Used
-
-AI assistance was used during development for code drafting, debugging, experiment planning, and documentation. Generated code and recommendations were reviewed and tested before use.
-
-Example of an error caught during development: An indentation error in app.py caused Streamlit to fail during Python compilation. The error was identified from the deployment traceback, and the file was corrected and checked locally before redeployment.
-
-AI assistance does not replace testing. Model metrics were evaluated using the project's evaluation scripts, and limitations are documented in this README.
-
-**15. Git and Submission**
-
-
-
-The repository should contain the source code, evaluation scripts, requirements, README, tests, and Git history.
-
-
-
-Do not include the virtual environment, raw dataset, processed image splits, local logs, secrets, or large model checkpoints in the final ZIP unless explicitly required. Include clear instructions for obtaining or recreating the required model artifact.
-
-
-
-Before submission, verify that the final ZIP contains the presentation (maximum 12 slides), source code, `.git` directory, and all other required deliverables.
-
-
-
+**Project status:** Experimental prototype for image-based product quantity prediction and order validation. Reported metrics apply to the documented evaluation samples and should not be interpreted as guarantees of real-world inventory accuracy.
