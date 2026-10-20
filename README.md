@@ -18,22 +18,19 @@ The prototype covers a fixed catalogue of 10 ASINs. It is an experimental system
 
 
 
-**2. Features**
+2. Features
 
+Image-based quantity prediction for the selected catalogue products.
 
+Order validation with per-product PASS/FAIL results.
 
-\- Image-based quantity prediction for catalogue products.
+Blind prediction using a bin identifier and uploaded photograph.
 
-\- Order validation with per-product PASS/FAIL results.
+Demo photograph selection from the dedicated data/demo_images/ folder.
 
-\- Blind prediction mode that accepts a bin ID and photograph.
+CSV logging of requests, model predictions, results, timestamps, and processing time.
 
-\- Demo photograph selection from training and validation images.
-
-\- CSV logging of requests, model predictions, results, timestamps, and processing time.
-
-\- Downloadable validation results.
-
+Downloadable validation and blind-prediction results.
 
 
 **3. Technology Stack**
@@ -160,57 +157,37 @@ The dataset, processed splits, catalogue CSV, and trained model checkpoint must 
 
 
 
-**7. Run the Application**
+7. Run the Application
 
-
-
-```powershell
+Install dependencies and ensure the required catalogue CSV and trained model checkpoint are available at the paths expected by app.py.
 
 python -m streamlit run app.py
 
-```
+Open the local URL printed in the terminal, usually http://localhost:8501.
 
+Validate an order
 
+Enter a quantity for each catalogue product.
 
-Open the local URL printed in the terminal, usually `http://localhost:8501`.
+Upload a bin photograph or select a demo photograph.
 
+Submit the order for validation.
 
+Review the predicted quantities and per-product PASS/FAIL results.
 
-\### Validate an order
+Download the validation results as a CSV file.
 
+Blind prediction
 
+Enter a bin identifier.
 
-1\. Enter a quantity for each catalogue product.
+Upload a bin photograph.
 
-2\. Upload a bin photograph or choose a demo photograph.
+Generate the model's quantity predictions.
 
-3\. Submit the order for validation.
+Review or download the predictions.
 
-4\. Review the predicted quantities and per-product results.
-
-5\. Download the validation results if required.
-
-
-
-\### Blind prediction
-
-
-
-1\. Enter a bin identifier.
-
-2\. Upload a blind bin photograph.
-
-3\. Generate the model's quantity predictions.
-
-4\. Review or download the predictions.
-
-
-
-Blind predictions are model estimates and are not ground-truth labels.
-
-
-
-**8. Model Approaches**
+Blind prediction uses the photograph as model input. Blind ground-truth metadata must not be used to generate predictions or make validation decisions.**8. Model Approaches**
 
 
 
@@ -300,20 +277,15 @@ Local logs may be lost when a hosted instance restarts or its storage is reset. 
 
 
 
-**12. Deployment**
+12. Deployment
 
+Platform: Streamlit Community Cloud
 
+Live application: https://smart-bin-classifier-farhan21.streamlit.app/
 
-Deployment platform: To be added.
+The application requires compatible Python dependencies, the trained model checkpoint, and the catalogue CSV. The demo-photo feature requires images in data/demo_images/.
 
-
-
-Live application URL: To be added after deployment and testing.
-
-
-
-The deployed application requires the model checkpoint and compatible Python dependencies. Large dataset files should not be committed to the source repository.
-
+The application has been tested for order validation, blind prediction, and CSV downloads. Hosted filesystem logs may not persist across restarts, so they should not be treated as durable production storage.
 
 
 **13. Production Monitoring and Retraining Plan**
@@ -340,17 +312,13 @@ Before production use:
 
 
 
-**14. AI Tools Used**
+14. AI Tools Used
 
+AI assistance was used during development for code drafting, debugging, experiment planning, and documentation. Generated code and recommendations were reviewed and tested before use.
 
+Example of an error caught during development: An indentation error in app.py caused Streamlit to fail during Python compilation. The error was identified from the deployment traceback, and the file was corrected and checked locally before redeployment.
 
-AI assistance was used during development for code drafting, debugging, experiment planning, and documentation.
-
-
-
-All generated code and results should be reviewed and tested. Document at least one specific AI-generated error that was caught during development, including the issue, how it was detected, and how it was corrected.
-
-
+AI assistance does not replace testing. Model metrics were evaluated using the project's evaluation scripts, and limitations are documented in this README.
 
 **15. Git and Submission**
 
