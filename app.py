@@ -71,6 +71,29 @@ def load_catalogue():
     return asins, catalogue
 
 
+def get_product_name_map(catalogue_df):
+    """Return a readable product name for each ASIN, falling back to the ASIN."""
+    name_map = {}
+
+    asin_column = next(
+        (column for column in ("asin", "ASIN") if column in catalogue_df.columns),
+        catalogue_df.columns[0] if len(catalogue_df.columns) else None,
+    )
+
+    if asin_column is None:
+        return name_map
+
+    for _, row in catalogue_df.iterrows():
+        asin = str(row.get(asin_column, "")).strip()
+        raw_name = row.get("product_name", row.get("Product Name", ""))
+        name = "" if pd.isna(raw_name) else str(raw_name).strip()
+
+        if asin:
+            name_map[asin] = name if name and name.lower() != "nan" else asin
+
+    return name_map
+
+
 # --------------------------------------------------
 # Load trained model
 # --------------------------------------------------
@@ -235,6 +258,7 @@ st.caption(
 try:
     with st.spinner("Loading the product catalogue and trained model..."):
         catalogue_asins, catalogue_df = load_catalogue()
+        product_names = get_product_name_map(catalogue_df)
         model, model_asins, max_quantity, preprocessing = load_model()
 
     if catalogue_asins != model_asins:
@@ -280,8 +304,9 @@ with tab_validate:
     st.markdown("#### Ordered quantities")
 
     for asin in model_asins:
+        product_name = product_names.get(asin, asin)
         order[asin] = st.number_input(
-            asin,
+            f"{product_name} ({asin})",
             min_value=0,
             max_value=max_quantity,
             value=0,
@@ -429,7 +454,8 @@ with tab_validate:
 
                     results_df = pd.DataFrame([
                         {
-                            "Product ASIN": asin,
+                            "Product": product_names.get(asin, asin),
+                            "ASIN": asin,
                             "Ordered": int(order[asin]),
                             "Predicted": predictions.get(asin, 0),
                             "Result": (
@@ -465,7 +491,11 @@ with tab_validate:
                     )
 
                     with st.expander("View predicted quantities"):
-                        st.json(predictions)
+                        named_predictions = {
+                            f"{product_names.get(asin, asin)} ({asin})": quantity
+                            for asin, quantity in predictions.items()
+                        }
+                        st.json(named_predictions)
 
             except (
                 UnidentifiedImageError,
@@ -533,10 +563,14 @@ with tab_blind:
 
                     elapsed = time.perf_counter() - start
 
-                    prediction_df = pd.DataFrame(
-                        predictions.items(),
-                        columns=["ASIN", "Predicted Quantity"],
-                    )
+                    prediction_df = pd.DataFrame([
+                        {
+                            "Product": product_names.get(asin, asin),
+                            "ASIN": asin,
+                            "Predicted Quantity": quantity,
+                        }
+                        for asin, quantity in predictions.items()
+                    ])
 
                     write_log(
                         {},
