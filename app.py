@@ -488,131 +488,90 @@ with tab_validate:
 # TAB 2: BLIND PREDICTION
 # ==============================
 
+
 with tab_blind:
     st.subheader("Blind bin prediction")
 
     st.write(
-        "Select an image from the reserved blind evaluation dataset. "
-        "Predictions are generated from the image using the trained model. "
-        "Ground-truth labels are not used for inference."
+        "Upload a bin photograph to generate quantity predictions "
+        "using the trained model. Ground-truth labels are not used "
+        "for inference."
     )
 
-    blind_dir = ROOT / "data" / "splits" / "blind"
-    blind_images_dir = blind_dir / "images"
-    blind_index_path = blind_dir / "image_order.csv"
+    uploaded_image = st.file_uploader(
+        "Upload a bin photograph",
+        type=["jpg", "jpeg", "png"],
+        key="blind_uploaded_image",
+    )
 
-    if not blind_index_path.is_file():
-        st.error("Blind image index not found: data/splits/blind/image_order.csv")
-
-    elif not blind_images_dir.is_dir():
-        st.error("Blind images folder not found: data/splits/blind/images")
-
-    else:
+    if uploaded_image is not None:
         try:
-            blind_index = pd.read_csv(blind_index_path)
+            with Image.open(uploaded_image) as source_image:
+                image = source_image.convert("RGB")
 
-            if "image_name" not in blind_index.columns:
-                st.error(
-                    "The blind image index must contain an 'image_name' column."
-                )
+            blind_bin_id = st.text_input(
+                "Bin ID (optional)",
+                key="blind_uploaded_bin_id",
+            )
 
-            else:
-                blind_names = blind_index["image_name"].dropna().astype(str)
-                blind_names = blind_names.drop_duplicates().tolist()
+            st.image(
+                image,
+                caption="Uploaded bin photograph",
+                width=320,
+            )
 
-                # Only allow filenames listed in the reserved blind index.
-                blind_paths = {
-                    name: blind_images_dir / Path(name).name
-                    for name in blind_names
-                    if Path(name).name == name
-                    and (blind_images_dir / name).is_file()
-                }
+            if st.button(
+                "Predict blind bin",
+                type="primary",
+                key="predict_blind_upload_button",
+            ):
+                try:
+                    start = time.perf_counter()
 
-                if not blind_paths:
-                    st.error("No valid blind images were found.")
+                    # Use the same prediction function as order validation.
+                    predictions = predict_quantities(image)
 
-                else:
-                    selected_name = st.selectbox(
-                        "Select a reserved blind image",
-                        options=list(blind_paths.keys()),
-                        key="selected_blind_image",
+                    elapsed = time.perf_counter() - start
+
+                    prediction_df = pd.DataFrame(
+                        predictions.items(),
+                        columns=["ASIN", "Predicted Quantity"],
                     )
 
-                    blind_bin_id = st.text_input(
-                        "Bin ID (optional)",
-                        value=Path(selected_name).stem,
-                        key="blind_bin_id",
+                    write_log(
+                        {},
+                        f"blind:{blind_bin_id.strip() or 'uploaded-image'}",
+                        predictions,
+                        "BLIND_PREDICTION",
+                        elapsed,
                     )
 
-                    if st.button(
-                        "Predict blind bin",
-                        type="primary",
-                        key="predict_blind_button",
-                    ):
-                        try:
-                            image_path = blind_paths[selected_name]
+                    st.success("Blind prediction completed.")
 
-                            with Image.open(image_path) as source_image:
-                                image = source_image.convert("RGB")
+                    st.dataframe(
+                        prediction_df,
+                        width="stretch",
+                        hide_index=True,
+                    )
 
-                            start = time.perf_counter()
-                            predictions = predict_quantities(image)
-                            elapsed = time.perf_counter() - start
+                    st.download_button(
+                        "Download blind predictions",
+                        data=prediction_df.to_csv(index=False),
+                        file_name="blind_predictions.csv",
+                        mime="text/csv",
+                        key="download_blind_upload_predictions",
+                    )
 
-                            prediction_df = pd.DataFrame([
-                                {
-                                    "Product ASIN": asin,
-                                    "Predicted quantity": predictions.get(asin, 0),
-                                }
-                                for asin in model_asins
-                            ])
+                    st.caption(
+                        "These are model predictions, not ground-truth labels. "
+                        f"Inference time: {elapsed:.4f} seconds."
+                    )
 
-                            write_log(
-                                {},
-                                (
-                                    f"blind:{blind_bin_id.strip() or Path(selected_name).stem}:"
-                                    f"{selected_name}"
-                                ),
-                                predictions,
-                                "BLIND_PREDICTION",
-                                elapsed,
-                            )
+                except Exception as error:
+                    st.error(f"Blind prediction failed: {error}")
 
-                            st.image(
-                                image,
-                                caption=f"Blind image: {selected_name}",
-                                width=320,
-                            )
-
-                            st.success("Blind prediction completed.")
-
-                            st.dataframe(
-                                prediction_df,
-                                width="stretch",
-                                hide_index=True,
-                            )
-
-                            st.download_button(
-                                "Download blind predictions",
-                                data=prediction_df.to_csv(index=False),
-                                file_name=f"{Path(selected_name).stem}_predictions.csv",
-                                mime="text/csv",
-                                key="download_blind_predictions",
-                            )
-
-                            st.caption(
-                                "These are model predictions, not ground-truth labels. "
-                                f"Inference time: {elapsed:.4f} seconds."
-                            )
-
-                        except (UnidentifiedImageError, OSError, ValueError) as error:
-                            st.error(f"Could not read the selected image: {error}")
-
-                        except Exception as error:
-                            st.error(f"Blind prediction failed: {error}")
-
-        except (OSError, ValueError, pd.errors.ParserError) as error:
-            st.error(f"Could not load the blind image index: {error}")
+        except Exception as error:
+            st.error(f"Could not read the uploaded image: {error}")
 
 # ==================================================
 # TAB 3: ABOUT THE MODEL
